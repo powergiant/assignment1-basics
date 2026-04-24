@@ -46,64 +46,50 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
     """
     TODO:
     """
-    pass
+    chunk = ""
+    with open(input_path, 'r') as f:
+        while True:
+            line = f.readline()
+            if len(line) != 0:
+                chunk += line
+            else:
+                break
 
+    pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-# if __name__ == '__main__':
-    # import pathlib
-    # input_path, vocab_size, special_tokens = ((pathlib.Path(__file__).resolve().parent) / "fixtures",
-    #                                           100, '<|endoftext|>')
-    
-import os
-import pathlib
-import regex as re
+    words = re.finditer(pattern, chunk)
 
-input_path, vocab_size, special_tokens = ((pathlib.Path(os.getcwd()).resolve()) / "tests" / "fixtures" / "corpus.en",
-                                              120, '<|endoftext|>')
+    counts = {}
+    for word in words:
+        try:
+            counts[word.group()] += 1
+        except:
+            counts[word.group()] = 1
 
-chunk = ""
-with open(input_path, 'r') as f:
-    while True:
-        line = f.readline()
-        if len(line) != 0:
-            chunk += line
-        else:
-            break
-
-pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-
-words = re.finditer(pattern, chunk)
-
-counts = {}
-for word in words:
-    try:
-        counts[word.group()] += 1
-    except:
-        counts[word.group()] = 1
-
-vocab = {}
-for word in counts.keys():
-    word: str
-    for c in word:
-        vocab[c] = {}
-
-while len(vocab_list(vocab)) < vocab_size:
-    merge_counts = {}
+    vocab = {}
     for word in counts.keys():
-        count = counts[word]
-        tokens = get_tokens(word, vocab)
-        for i in range(len(tokens)-1):
-            try:
-                merge_counts[(tokens[i], tokens[i+1])] += count
-            except:
-                merge_counts[(tokens[i], tokens[i+1])] = count
-    (p_m, count) = max(list(merge_counts.items()), key=lambda x: x[1])
+        word: str
+        for c in word:
+            vocab[c] = {}
 
-    vocab_add(vocab, ''.join(p_m))
+    merges = []
+    while len(vocab_list(vocab)) < vocab_size:
+        merge_counts = {}
+        for word in counts.keys():
+            count = counts[word]
+            tokens = get_tokens(word, vocab)
+            for i in range(len(tokens)-1):
+                try:
+                    merge_counts[(tokens[i], tokens[i+1])] += count
+                except:
+                    merge_counts[(tokens[i], tokens[i+1])] = count
+        (p_m, count) = max(list(merge_counts.items()), key=lambda x: x[1])
 
-print(vocab_list(vocab))
+        merges.append(p_m)
 
+        vocab_add(vocab, ''.join(p_m))
 
+    return vocab, merges
 
 if __name__ == '__main__':
     word = "based"
@@ -124,3 +110,17 @@ if __name__ == '__main__':
     vocab = {'a': {'s': {}}, 'b': {'a': {}}, 'd': {}, 'e': {}, 's': {}}
 
     assert get_tokens(word, vocab) == ['ba', 's', 'e', 'd']
+
+    import os
+    import pathlib
+    import regex as re
+
+    input_path, vocab_size, special_tokens = ((pathlib.Path(os.getcwd()).resolve()) / "tests" / "fixtures" / "corpus.en",
+                                              120, '<|endoftext|>')
+    
+    # input_path, vocab_size, special_tokens = ((pathlib.Path(__file__).resolve().parent) / "fixtures",
+    #                                           100, '<|endoftext|>')
+
+    train_bpe(input_path, vocab_size, special_tokens)
+    
+
