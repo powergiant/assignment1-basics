@@ -1,3 +1,47 @@
+def get_tokens(word: str, vocab: dict):
+
+    tokens = []
+
+    id = 0
+    while id < len(word):
+        i = id
+        d = vocab
+        while i < len(word):
+            if word[i] in d:
+                d = d[word[i]]
+                i += 1
+            else:
+                break
+        token = word[id:i]
+        id = i
+        tokens.append(token)
+    
+    return tokens
+
+def vocab_list(vocab: dict) -> list:
+    l = []
+
+    if vocab == {}:
+        return []
+    
+    for key in vocab.keys():
+        l_temp = [""] + vocab_list(vocab[key])
+        l_temp = [key + v for v in l_temp]
+        l += l_temp
+            
+    return l
+            
+def vocab_add(vocab: dict, v: str) -> None:
+    d = vocab
+    for id in range(len(v)):
+        if v[id] in d:
+            d = d[v[id]]
+        else:
+            for id_1 in range(id, len(v)):
+                d[v[id_1]] = {}
+                d = d[v[id_1]]
+            break
+
 def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
     TODO:
@@ -15,7 +59,7 @@ import pathlib
 import regex as re
 
 input_path, vocab_size, special_tokens = ((pathlib.Path(os.getcwd()).resolve()) / "tests" / "fixtures" / "corpus.en",
-                                              100, '<|endoftext|>')
+                                              120, '<|endoftext|>')
 
 chunk = ""
 with open(input_path, 'r') as f:
@@ -43,52 +87,40 @@ for word in counts.keys():
     for c in word:
         vocab[c] = {}
 
-# counts = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+while len(vocab_list(vocab)) < vocab_size:
+    merge_counts = {}
+    for word in counts.keys():
+        count = counts[word]
+        tokens = get_tokens(word, vocab)
+        for i in range(len(tokens)-1):
+            try:
+                merge_counts[(tokens[i], tokens[i+1])] += count
+            except:
+                merge_counts[(tokens[i], tokens[i+1])] = count
+    (p_m, count) = max(list(merge_counts.items()), key=lambda x: x[1])
 
-# word = "based"
+    vocab_add(vocab, ''.join(p_m))
 
-# vocab = {'a': {'s': {}}, 'b': {}, 'd': {}, 'e': {}, 's': {}}
+print(vocab_list(vocab))
 
-# tokens = []
 
-# for id in range(len(word)):
-#     i = id
-#     d = vocab
-#     while i < len(word):
-#         if word[i] in d:
-#             d = d[word[i]]
-#             i += 1
-#         else:
-#             break
-#     token = word[id:i]
-#     tokens.append(token)
 
-def get_tokens(word: str, vocab: dict):
+if __name__ == '__main__':
+    word = "based"
 
-    tokens = []
+    vocab = {'a': {'s': {}}, 'b': {}, 'd': {}, 'e': {}, 's': {}}
 
-    for id in range(len(word)):
-        i = id
-        d = vocab
-        while i < len(word):
-            if word[i] in d:
-                d = d[word[i]]
-                i += 1
-            else:
-                break
-        token = word[id:i]
-        tokens.append(token)
-    
-    return tokens
+    assert get_tokens(word, vocab) == ['b', 'as', 'e', 'd']
 
-get_tokens(word, vocab)
 
-merge_counts = {}
-for word in counts.keys():
-    tokens = get_tokens(word, vocab)
-    for i in range(len(tokens)-1):
-        try:
-            merge_counts[(tokens[i], tokens[i+1])] += 1
-        except:
-            merge_counts[(tokens[i], tokens[i+1])] = 1
-merge_counts
+    assert vocab_list(vocab) == ['a', 'as', 'b', 'd', 'e', 's']
+
+    vocab_add(vocab, 'attt')
+
+    assert vocab == {'a': {'s': {}, 't': {'t': {'t': {}}}}, 'b': {}, 'd': {}, 'e': {}, 's': {}}
+
+    word = "based"
+
+    vocab = {'a': {'s': {}}, 'b': {'a': {}}, 'd': {}, 'e': {}, 's': {}}
+
+    assert get_tokens(word, vocab) == ['ba', 's', 'e', 'd']
