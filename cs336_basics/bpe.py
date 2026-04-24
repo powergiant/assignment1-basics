@@ -1,11 +1,11 @@
-def get_tokens(word: str, vocab: dict):
+def get_tokens(word: str, vocab_hash: dict):
 
     tokens = []
 
     id = 0
     while id < len(word):
         i = id
-        d = vocab
+        d = vocab_hash
         while i < len(word):
             if word[i] in d:
                 d = d[word[i]]
@@ -18,21 +18,21 @@ def get_tokens(word: str, vocab: dict):
     
     return tokens
 
-def vocab_list(vocab: dict) -> list:
+def vocab_hash_to_list(vocab_hash: dict) -> list:
     l = []
 
-    if vocab == {}:
+    if vocab_hash == {}:
         return []
     
-    for key in vocab.keys():
-        l_temp = [""] + vocab_list(vocab[key])
+    for key in vocab_hash.keys():
+        l_temp = [""] + vocab_hash_to_list(vocab_hash[key])
         l_temp = [key + v for v in l_temp]
         l += l_temp
             
     return l
             
-def vocab_add(vocab: dict, v: str) -> None:
-    d = vocab
+def vocab_hash_add(vocab_hash: dict, v: str) -> None:
+    d = vocab_hash
     for id in range(len(v)):
         if v[id] in d:
             d = d[v[id]]
@@ -66,18 +66,19 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
         except:
             counts[word.group()] = 1
 
-    vocab = {}
+    vocab_ash = {}
     for word in counts.keys():
         word: str
         for c in word:
-            vocab[c] = {}
+            vocab_ash[c] = {}
 
     merges = []
-    while len(vocab_list(vocab)) < vocab_size:
+    vocab_len = len(vocab_hash_to_list(vocab_ash))
+    while vocab_len < vocab_size:
         merge_counts = {}
         for word in counts.keys():
             count = counts[word]
-            tokens = get_tokens(word, vocab)
+            tokens = get_tokens(word, vocab_ash)
             for i in range(len(tokens)-1):
                 try:
                     merge_counts[(tokens[i], tokens[i+1])] += count
@@ -87,9 +88,11 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
 
         merges.append(p_m)
 
-        vocab_add(vocab, ''.join(p_m))
+        vocab_hash_add(vocab_ash, ''.join(p_m))
+        vocab_len += 1
+        assert vocab_len == len(vocab_hash_to_list(vocab_ash))
 
-    return vocab, merges
+    return vocab_ash, merges
 
 if __name__ == '__main__':
     word = "based"
@@ -98,10 +101,9 @@ if __name__ == '__main__':
 
     assert get_tokens(word, vocab) == ['b', 'as', 'e', 'd']
 
+    assert vocab_hash_to_list(vocab) == ['a', 'as', 'b', 'd', 'e', 's']
 
-    assert vocab_list(vocab) == ['a', 'as', 'b', 'd', 'e', 's']
-
-    vocab_add(vocab, 'attt')
+    vocab_hash_add(vocab, 'attt')
 
     assert vocab == {'a': {'s': {}, 't': {'t': {'t': {}}}}, 'b': {}, 'd': {}, 'e': {}, 's': {}}
 
@@ -121,6 +123,6 @@ if __name__ == '__main__':
     # input_path, vocab_size, special_tokens = ((pathlib.Path(__file__).resolve().parent) / "fixtures",
     #                                           100, '<|endoftext|>')
 
-    train_bpe(input_path, vocab_size, special_tokens)
+    assert vocab_hash_to_list(train_bpe(input_path, vocab_size, special_tokens)[0]) == ['i', 'in', 'is', 'r', 're', 'o', 'or', 'n', 'nd', ' ', ' t', ' th', ' the', ' a', ' o', ' ,', ' s', ' .', ' w', ' c', 'c', 'e', 'er', 'm', 't', 's', 'a', 'at', 'd', 'y', 'f', 'u', 'p', 'w', 'h', 'he', 'l', 'b', 'k', 'g', '(', ')', '.', '\n', ',', 'v', 'P', 'O', 'B', 'x', 'N', 'T', 'A', 'L', 'W', 'E', 'D', 'I', 'M', 'S', '!', '?', 'V', '5', '#', '@', '-', 'G', '0', '8', '1', '3', '2', '4', '9', 'F', '&', ';', 'U', 'q', 'C', '6', '/', '7', 'Q', 'X', '®', 'H', 'Y', '\xad', 'j', '*', ':', '©', 'à', 'z', 'J', 'K', 'R', 'ü', 'í', 'á', 'Z', '_', '$', '%', 'ñ', '\x93', '\x94', '=', 'õ', 'ä', '€', 'ö', 'å', '\x97', '™', 'ß', '�', '+']
     
 
