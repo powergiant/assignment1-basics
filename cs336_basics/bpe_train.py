@@ -18,18 +18,23 @@ def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
     return l_new
 
 def pretokenization(input_path: str, special_tokens: list[str]) -> list[str]:
-    chunk = ""
     with open(input_path, 'r') as f:
-        while True:
-            line = f.readline()
-            if len(line) != 0:
-                chunk += line
-            else:
-                break
+        content = f.read()
+
+    content_list = [content]
+    
+    for special_token in special_tokens:
+        l_temp = []
+        for item in content_list:
+            l_temp += item.split(special_token)
+        content_list = l_temp
 
     pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-    words = [word for word in re.finditer(pattern, chunk)]
+    words = []
+
+    for item in content_list:
+        words += [word for word in re.finditer(pattern, item)]
 
     return words
 
@@ -84,10 +89,10 @@ def test_corpus_en():
     import time
 
     input_path, vocab_size, special_tokens = ((pathlib.Path(os.getcwd()).resolve()) / "tests" / "fixtures" / "corpus.en",
-                                              500, '<|endoftext|>')
+                                              500, ['<|endoftext|>'])
     
     # input_path, vocab_size, special_tokens = ((pathlib.Path(__file__).resolve().parent) / "fixtures",
-    #                                           100, '<|endoftext|>')
+    #                                           100, ['<|endoftext|>'])
 
     start_time = time.time()
     vocab = list(train_bpe(input_path, vocab_size, special_tokens)[0].items())[272:292]
@@ -103,10 +108,10 @@ def test_tinystories():
     import time
 
     input_path, vocab_size, special_tokens = ((pathlib.Path(os.getcwd()).resolve()) / "tests" / "fixtures" / "tinystories_sample_5M.txt",
-                                              500, '<|endoftext|>')
+                                              500, ['<|endoftext|>'])
     
     # input_path, vocab_size, special_tokens = ((pathlib.Path(__file__).resolve().parent) / "fixtures",
-    #                                           100, '<|endoftext|>')
+    #                                           100, ['<|endoftext|>'])
 
     start_time = time.time()
     vocab = list(train_bpe(input_path, vocab_size, special_tokens)[0].items())[272:292]
