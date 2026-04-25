@@ -5,7 +5,7 @@
       "name": "Python: run module",
       "type": "debugpy",
       "request": "launch",
-      "module": "cs336_basics.tokenizer",
+      "module": "cs336_basics.model",
       "args": [],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
@@ -17,7 +17,7 @@
       "request": "launch",
       "module": "pytest",
       "args": [
-        "tests/test_tokenizer.py",
+        "tests/test_model.py",
         "-s"
       ],
       "console": "integratedTerminal",

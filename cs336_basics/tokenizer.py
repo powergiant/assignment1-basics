@@ -1,6 +1,6 @@
 from typing import Iterable, Iterator
 import os
-from .bpe_train import pretokenization, replace_pair
+from .train_bpe import pretokenization, replace_pair
 
 pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 

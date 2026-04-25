@@ -8,9 +8,9 @@ import numpy.typing as npt
 import torch
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
-from cs336_basics.bpe_train import train_bpe
+from cs336_basics.train_bpe import train_bpe
 from cs336_basics.tokenizer import Tokenizer
-
+from cs336_basics.model import Linear, Embedding, RMSNorm, FFN
 
 def run_linear(
     d_in: int,
@@ -31,7 +31,11 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
 
-    raise NotImplementedError
+    linear = Linear(d_in, d_out)
+    with torch.no_grad():
+        linear.weight.copy_(weights)
+
+    return linear(in_features)
 
 
 def run_embedding(
@@ -53,7 +57,11 @@ def run_embedding(
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
 
-    raise NotImplementedError
+    embd = Embedding(vocab_size, d_model)
+    with torch.no_grad():
+        embd.embd.copy_(weights)
+
+    return embd(token_ids)
 
 
 def run_swiglu(
@@ -85,7 +93,16 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
-    raise NotImplementedError
+
+    # d_ff = round(d_model * 8 / 3 / 64) * 64
+    d_ff = d_model * 8 // 3 // 64 * 64
+    ffn = FFN(d_model, d_ff)
+    ffn.load_state_dict({'l_1.weight': w1_weight, 'l_2.weight': w2_weight, 'l_3.weight': w3_weight})
+    # ffn.l_1.weight.data = w1_weight
+    # ffn.l_2.weight.data = w2_weight
+    # ffn.l_3.weight.data = w3_weight
+
+    return ffn(in_features)
 
 
 def run_scaled_dot_product_attention(
