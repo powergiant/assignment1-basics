@@ -16,12 +16,12 @@ def word_tokenization_list_step(bs: list[bytes], merges: list[tuple[bytes, bytes
     if len(bs) == 0:
         return bs
     
-    b = bs[0]
+    b_0 = bs[0]
 
     if len(bs) > 1:
-        b_next = bs[1]
-        if (b, b_next) in merges:
-            b_merged = b + b_next
+        b_1 = bs[1]
+        if (b_0, b_1) in merges:
+            b_merged = b_0 + b_1
             bs = word_tokenization_list_step([b_merged] + bs[2:], merges)
         else:
             bs = [bs[0]] + word_tokenization_list_step(bs[1:], merges)
