@@ -2,6 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Python: run module",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cs336_basics.tokenizer",
+      "args": [],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    },
+    {
       "name": "Debug pytest: test_train_bpe",
       "type": "debugpy",
       "request": "launch",

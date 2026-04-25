@@ -15,22 +15,23 @@ def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
             id += 1
     return l_new
 
-def pretokenization(content: str, special_tokens: list[str]) -> list[str]:
+def pretokenization(content: str, special_tokens: list[str] | None) -> list[str]:
 
     content_list = [content]
     
-    for special_token in special_tokens:
-        l_temp = []
-        for item in content_list:
-            l_temp += item.split(special_token)
-        content_list = l_temp
+    if special_tokens:
+        for special_token in special_tokens:
+            l_temp = []
+            for item in content_list:
+                l_temp += item.split(special_token)
+            content_list = l_temp
 
     pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
     words = []
 
     for item in content_list:
-        words += [word for word in re.finditer(pattern, item)]
+        words += [word.group() for word in re.finditer(pattern, item)]
 
     return words
 
@@ -46,9 +47,9 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
     counts = {}
     for word in words:
         try:
-            counts[word.group()] += 1
+            counts[word] += 1
         except:
-            counts[word.group()] = 1
+            counts[word] = 1
 
     vocab = {i: bytes([i]) for i in range(256)}
 
@@ -77,7 +78,7 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
         vocab_len += 1
 
     for id, special_token in enumerate(special_tokens):
-        vocab[vocab_size - len(special_tokens) + id] = bytes(special_token.encode("utf-8"))
+        vocab[vocab_size - len(special_tokens) + id] = special_token.encode("utf-8")
 
     return vocab, merges
 
