@@ -2,13 +2,15 @@ from typing import Iterable, Iterator
 import os
 from .bpe_train import pretokenization
 
+pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+
 def chunk_pretokenization_iter(chunk: str, special_tokens: list[str] | None) -> Iterator[str]:
-    words = pretokenization(chunk, special_tokens)
+    words = pretokenization(chunk, special_tokens, pattern)
     for word in words:
         yield word
 
 def chunk_pretokenization_list(chunk: str, special_tokens: list[str] | None) -> list[str]:
-    return pretokenization(chunk, special_tokens)
+    return pretokenization(chunk, special_tokens, pattern)
 
 def word_tokenization_list_step(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> list[bytes]:
     if len(bs) == 0:
@@ -114,3 +116,9 @@ if __name__ == '__main__':
     test_word_tokenization(tokenizer)
     test_encode_iterable(tokenizer)
     test_encode(tokenizer)
+
+    vocab = {1: b'h', 2: b'e', 3: b'l', 4: b'l', 5: b'o', 6: b'he', 7: b'll', 8: b'hell', 9: b'llo', 10: b'hello'}
+    merges = [(b'h', b'e'), (b'l', b'l'), (b'he', b'll'), (b'll', b'o'), (b'hell', b'o')]
+    tokenizer = Tokenizer(vocab, merges)
+
+    assert list(tokenizer.encode('hello')) == [10]
