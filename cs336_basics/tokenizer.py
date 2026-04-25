@@ -1,6 +1,6 @@
 from typing import Iterable, Iterator
 import os
-from .bpe_train import pretokenization
+from .bpe_train import pretokenization, replace_pair
 
 pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -12,47 +12,22 @@ def chunk_pretokenization_iter(chunk: str, special_tokens: list[str] | None) -> 
 def chunk_pretokenization_list(chunk: str, special_tokens: list[str] | None) -> list[str]:
     return pretokenization(chunk, special_tokens, pattern)
 
-def word_tokenization_list_left(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> tuple[bytes, list[bytes]]:
-    if len(bs) == 0:
-        raise
-    elif len(bs)== 1:
-        return bs[0], []
-    
-    b_0, b_1 = bs[0:2]
-    if (b_0, b_1) in merges:
-        b_merged = b_0 + b_1
-        return word_tokenization_list_left([b_merged] + bs[2:], merges)
-    else:
-        return b_0, bs[1:]
-    
-def word_tokenization_list_right(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> tuple[list[bytes], bool]:
-    if len(bs) == 0:
-        raise
-    elif len(bs)== 1:
-        return bs, False
-    
-    b_0, b_1 = bs[0:2]
-    if (b_0, b_1) in merges:
-        b_merged = b_0 + b_1
-        is_there_merge = True
-        return [b_merged] + bs[2:], is_there_merge
-    else:
-        rest, is_there_merge = word_tokenization_list_right(bs[1:], merges)
-        return [b_0] + rest, is_there_merge
-
 def word_tokenization_list_rec(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> list[bytes]:
-    b_0, bs_rest = word_tokenization_list_left(bs, merges)
-
-    if len(bs_rest) == 0:
-        return [b_0]
-    
-    bs_rest, is_there_merge = word_tokenization_list_right(bs_rest, merges)
-
+    is_there_merge = False
+    for b_0, b_1 in merges:
+        if b_0 not in bs:
+            continue
+        else:
+            for id in range(len(bs)-1):
+                if b_0 == bs[id] and b_1 == bs[id+1]:
+                    bs = replace_pair(bs, (b_0, b_1))
+                    is_there_merge = True
+                    break
     if is_there_merge:
-        return word_tokenization_list_rec([b_0] + bs_rest, merges)
+        return word_tokenization_list_rec(bs, merges)
     else:
-        return [b_0] + bs_rest
-
+        return bs
+    
 
 def word_tokenization_list(word: str, vocab_inv: dict[bytes, int], merges: list[tuple[bytes, bytes]]) -> list[int]:
     bs = [bytes([b]) for b in word.encode('utf-8')]
@@ -73,7 +48,7 @@ def word_tokenization_iter(word: str, vocab_inv: dict[bytes, int], merges: list[
 class Tokenizer:
     def __init__(self, vocab: dict[int, bytes], 
                  merges: list[tuple[bytes, bytes]], 
-                 special_tokens: list[str]=None):
+                 special_tokens: list[str] | None = None):
         self.vocab = vocab
         self.vocab_inv = {b: id for id, b in vocab.items()}
         self.merges = merges
@@ -86,7 +61,10 @@ class Tokenizer:
         l_enc = []
         words = chunk_pretokenization_list(text, self.special_tokens)
         for word in words:
-            l_enc += word_tokenization_list(word, self.vocab_inv, self.merges)
+            if self.special_tokens and word in self.special_tokens:
+                l_enc.append(self.vocab_inv[word.encode('utf-8')])
+            else:
+                l_enc += word_tokenization_list(word, self.vocab_inv, self.merges)
         return l_enc
     
 
@@ -94,7 +72,10 @@ class Tokenizer:
         for chunk in iterable:
             words = chunk_pretokenization_iter(chunk, self.special_tokens)
             for word in words:
-                tokens = word_tokenization_iter(word, self.vocab_inv, self.merges)
+                if self.special_tokens and word in self.special_tokens:
+                    tokens = [self.vocab_inv[word.encode('utf-8')]]
+                else:
+                    tokens = word_tokenization_iter(word, self.vocab_inv, self.merges)
                 for token in tokens:
                     yield token
 

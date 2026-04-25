@@ -18,18 +18,26 @@ def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
 def pretokenization(content: str, special_tokens: list[str] | None, pattern: str) -> list[str]:
 
     content_list = [content]
+
+    # TODO: no repetition check
     
     if special_tokens:
         for special_token in special_tokens:
             l_temp = []
             for item in content_list:
-                l_temp += item.split(special_token)
+                item_split = item.split(special_token)
+                for it in item_split:
+                    l_temp.extend([it, special_token])
+                l_temp.pop()
             content_list = l_temp
 
     words = []
 
     for item in content_list:
-        words += [word.group() for word in re.finditer(pattern, item)]
+        if special_tokens and item in special_tokens:
+            words.append(item)
+        else:
+            words += [word.group() for word in re.finditer(pattern, item)]
 
     return words
 
@@ -43,6 +51,7 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
         content = f.read()
     pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     words = pretokenization(content, special_tokens, pattern)
+    words = list(filter(lambda x : x not in special_tokens, words))
     counts = {}
     for word in words:
         try:
