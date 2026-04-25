@@ -1,7 +1,6 @@
 import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
-from torch.nn.functional import silu
 import math
 from einops import einsum
 
@@ -56,6 +55,9 @@ class RMSNorm(Module):
         norm = torch.sqrt((h**2).sum(-1)/self.d_model + self.eps).unsqueeze(-1)
         return h / norm * self.gamma
 
+def silu(x: Tensor) -> Tensor:
+    return x/(1+torch.exp(-x))
+
 class FFN(Module):
     def __init__(self, d_model: int, 
                  d_ff: int, 
@@ -70,3 +72,40 @@ class FFN(Module):
 
     def forward(self, h: Tensor) -> Tensor:
         return self.l_2(silu(self.l_1(h)) * self.l_3(h))
+    
+class RoPE(Module):
+    def __init__(self, theta: float, d_model: int, max_seq_len: int, device: torch.device | None = None):
+        super().__init__()
+        self.theta = theta
+        self.d_model = d_model
+        assert d_model % 2 == 0
+        self.max_seq_len = max_seq_len
+        # TODO: self.register_buffer()
+
+    def forward(self, h: Tensor, pos: Tensor) -> Tensor:
+        assert h.size(-1) == self.d_model
+        assert h.size(-2) == pos.size(-1)
+        d_model_half = self.d_model//2 
+        h_1 = h[..., :d_model_half]
+        h_2 = h[..., d_model_half:]
+        pos.unsqueeze_(-1)
+        theta = torch.tensor(self.theta)
+        freq = theta ** torch.tensor([[-k/d_model_half for k in range(d_model_half)]])
+        cos = torch.cos(pos * freq)
+        sin = torch.sin(pos * freq)
+        return torch.cat((cos * h_1 - sin * h_2, sin * h_1 + cos * h_2), dim=-1)
+
+    
+    def forward(self, h: Tensor, pos: Tensor) -> Tensor:
+        assert h.size(-1) == self.d_model
+        assert h.size(-2) == pos.size(-1)
+        d_model_half = self.d_model//2 
+        shape = h.shape
+        h = h.reshape(*shape[:-1], -1, 2)
+        pos.unsqueeze_(-1)
+        theta = torch.tensor(self.theta)
+        freq = theta ** torch.tensor([[-k/d_model_half for k in range(d_model_half)]])
+        cos = torch.cos(pos * freq)
+        sin = torch.sin(pos * freq)
+        return torch.stack((cos * h[..., 0] - sin * h[..., 1], 
+                          sin * h[..., 0] + cos * h[..., 1]), dim=-1).reshape(shape)
