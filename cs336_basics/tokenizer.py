@@ -12,36 +12,57 @@ def chunk_pretokenization_iter(chunk: str, special_tokens: list[str] | None) -> 
 def chunk_pretokenization_list(chunk: str, special_tokens: list[str] | None) -> list[str]:
     return pretokenization(chunk, special_tokens, pattern)
 
-def word_tokenization_list_step(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> list[bytes]:
+def word_tokenization_list_left(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> tuple[bytes, list[bytes]]:
     if len(bs) == 0:
-        return bs
+        raise
+    elif len(bs)== 1:
+        return bs[0], []
     
-    b_0 = bs[0]
-
-    if len(bs) > 1:
-        b_1 = bs[1]
-        if (b_0, b_1) in merges:
-            b_merged = b_0 + b_1
-            bs = word_tokenization_list_step([b_merged] + bs[2:], merges)
-        else:
-            bs = [bs[0]] + word_tokenization_list_step(bs[1:], merges)
-        return bs
+    b_0, b_1 = bs[0:2]
+    if (b_0, b_1) in merges:
+        b_merged = b_0 + b_1
+        return word_tokenization_list_left([b_merged] + bs[2:], merges)
     else:
-        return bs
+        return b_0, bs[1:]
+    
+def word_tokenization_list_right(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> tuple[list[bytes], bool]:
+    if len(bs) == 0:
+        raise
+    elif len(bs)== 1:
+        return bs, False
+    
+    b_0, b_1 = bs[0:2]
+    if (b_0, b_1) in merges:
+        b_merged = b_0 + b_1
+        is_there_merge = True
+        return [b_merged] + bs[2:], is_there_merge
+    else:
+        rest, is_there_merge = word_tokenization_list_right(bs[1:], merges)
+        return [b_0] + rest, is_there_merge
 
-def word_tokenization_list(word: str, vocab_inv: dict[bytes, int], merges: dict[bytes, bytes]) -> list[int]:
+def word_tokenization_list_rec(bs: list[bytes], merges: list[tuple[bytes, bytes]]) -> list[bytes]:
+    b_0, bs_rest = word_tokenization_list_left(bs, merges)
+
+    if len(bs_rest) == 0:
+        return [b_0]
+    
+    bs_rest, is_there_merge = word_tokenization_list_right(bs_rest, merges)
+
+    if is_there_merge:
+        return word_tokenization_list_rec([b_0] + bs_rest, merges)
+    else:
+        return [b_0] + bs_rest
+
+
+def word_tokenization_list(word: str, vocab_inv: dict[bytes, int], merges: list[tuple[bytes, bytes]]) -> list[int]:
     bs = [bytes([b]) for b in word.encode('utf-8')]
 
-    bs_step = word_tokenization_list_step([bytes([b]) for b in word.encode('utf-8')], merges)
-
-    while bs != bs_step:
-        bs = bs_step
-        bs_step = word_tokenization_list_step(bs, merges)
+    bs = word_tokenization_list_rec(bs, merges)
 
     return [vocab_inv[b] for b in bs]
 
 
-def word_tokenization_iter(word: str, vocab_inv: dict[bytes, int], merges: dict[bytes, bytes]) -> Iterator[int]:
+def word_tokenization_iter(word: str, vocab_inv: dict[bytes, int], merges: list[tuple[bytes, bytes]]) -> Iterator[int]:
     ids = word_tokenization_list(word, vocab_inv, merges)
 
     for id in ids:
@@ -87,9 +108,9 @@ class Tokenizer:
 def test_chunk_pretokenization():
     assert [word for word in chunk_pretokenization_iter('acass acas', None)] == ['acass', ' acas']
 
-def test_word_tokenization_list(merges: list[tuple[bytes, bytes]]):
-    assert word_tokenization_list_step([b'a', b'c', b'a', b's', b's', b' '], merges) == [b'a', b'c', b'as', b's', b' ']
-    assert word_tokenization_list_step([b'a', b'c', b'a', b's', b's', b'a'], merges) == [b'a', b'c', b'as', b'sa']
+def test_word_tokenization_list_rec(merges: list[tuple[bytes, bytes]]):
+    assert word_tokenization_list_rec([b'a', b'c', b'a', b's', b's', b' '], merges) == [b'a', b'c', b'as', b's', b' ']
+    assert word_tokenization_list_rec([b'a', b'c', b'a', b's', b's', b'a'], merges) == [b'a', b'c', b'assa']
 
 def test_word_tokenization(tokenizer: Tokenizer):
     assert list(word_tokenization_iter('acassa', tokenizer.vocab_inv, tokenizer.merges)) == [1, 2, 6]
@@ -112,7 +133,7 @@ if __name__ == '__main__':
 
     test_decode(tokenizer)
     test_chunk_pretokenization()
-    test_word_tokenization_list(merges)
+    test_word_tokenization_list_rec(merges)
     test_word_tokenization(tokenizer)
     test_encode_iterable(tokenizer)
     test_encode(tokenizer)
