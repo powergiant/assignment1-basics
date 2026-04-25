@@ -80,11 +80,14 @@ class Tokenizer:
                     yield token
 
 
-    def decode(self, ids: list[int]) -> str:
+    def decode(self, ids: list[int]) -> str | None:
         s = b""
         for id in ids:
             s += self.vocab[id]
-        return s.decode('utf-8')
+        try:
+            return s.decode('utf-8')
+        except:
+            return None
 
 def test_chunk_pretokenization():
     assert [word for word in chunk_pretokenization_iter('acass acas', None)] == ['acass', ' acas']
@@ -100,6 +103,7 @@ def test_encode_iterable(tokenizer: Tokenizer):
     assert list(tokenizer.encode_iterable(['acassa acass'])) == [1, 2, 6, 7, 1, 2, 4, 3]
 
 def test_encode(tokenizer: Tokenizer):
+    assert list(tokenizer.encode('')) == []
     assert list(tokenizer.encode('acassa acass')) == [1, 2, 6, 7, 1, 2, 4, 3]
 
 

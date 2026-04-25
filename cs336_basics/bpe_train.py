@@ -18,13 +18,17 @@ def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
 def pretokenization(content: str, special_tokens: list[str] | None, pattern: str) -> list[str]:
 
     content_list = [content]
-
-    # TODO: no repetition check
     
     if special_tokens:
+
+        special_tokens = sorted(special_tokens, key=lambda x: len(x), reverse=True)
+
         for special_token in special_tokens:
             l_temp = []
             for item in content_list:
+                if item in special_tokens:
+                    l_temp.append(item)
+                    continue
                 item_split = item.split(special_token)
                 for it in item_split:
                     l_temp.extend([it, special_token])
