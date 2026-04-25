@@ -48,6 +48,11 @@ def test_train_bpe():
             )
             for merge_token_1, merge_token_2 in gpt2_reference_merges
         ]
+    for id, item in enumerate(zip(merges, reference_merges)):
+        item_1, item_2 = item
+        if item_1 != item_2:
+            print(id)
+        break
     assert merges == reference_merges
 
     # Compare the vocab to the expected output vocab
