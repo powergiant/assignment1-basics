@@ -12,7 +12,7 @@
       "justMyCode": false
     },
     {
-      "name": "Debug pytest: test_train_bpe",
+      "name": "Debug pytest",
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
