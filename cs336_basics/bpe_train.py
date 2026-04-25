@@ -1,5 +1,6 @@
 import regex as re
 from typing import BinaryIO
+from regex import Scanner
 
 def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
     if p_m[0] not in l:
@@ -16,14 +17,7 @@ def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
             id += 1
     return l_new
 
-def boundary_special_tokens(file: BinaryIO, special_tokens: list[str]) -> list[tuple]:
-    # TODO: fix the special token problem
-    pass
-
-def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
-    """
-    TODO:
-    """
+def pretokenization(input_path: str, special_tokens: list[str]) -> list[str]:
     chunk = ""
     with open(input_path, 'r') as f:
         while True:
@@ -35,8 +29,17 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
 
     pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-    words = re.finditer(pattern, chunk)
+    words = [word for word in re.finditer(pattern, chunk)]
 
+    return words
+
+
+
+def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+    """
+    TODO:
+    """
+    words = pretokenization(input_path, special_tokens)
     counts = {}
     for word in words:
         try:
