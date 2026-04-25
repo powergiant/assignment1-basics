@@ -1,6 +1,4 @@
 import regex as re
-from typing import BinaryIO
-from regex import Scanner
 
 def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
     if p_m[0] not in l:
@@ -17,9 +15,7 @@ def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
             id += 1
     return l_new
 
-def pretokenization(input_path: str, special_tokens: list[str]) -> list[str]:
-    with open(input_path, 'r') as f:
-        content = f.read()
+def pretokenization(content: str, special_tokens: list[str]) -> list[str]:
 
     content_list = [content]
     
@@ -44,7 +40,9 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
     """
     TODO:
     """
-    words = pretokenization(input_path, special_tokens)
+    with open(input_path, 'r') as f:
+        content = f.read()
+    words = pretokenization(content, special_tokens)
     counts = {}
     for word in words:
         try:
