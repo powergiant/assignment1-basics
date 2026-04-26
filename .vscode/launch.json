@@ -17,7 +17,7 @@
       "request": "launch",
       "module": "pytest",
       "args": [
-        "tests/test_optimizer.py",
+        "tests/test_data.py",
         "-s"
       ],
       "console": "integratedTerminal",
