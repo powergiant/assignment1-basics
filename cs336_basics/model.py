@@ -184,6 +184,11 @@ class MultiheadSelfAttention(Module):
         return self.o_proj(h.view(*B, T, D))
 
 
+class TransformerLM(Module):
+    def __init__(self, vocab_size: int, d_model: int, num_heads: int, theta: float, max_seq_len: int,
+                 device: torch.device | None = None,
+                 dtype: torch.dtype | None = None):
+        super().__init__()
 
 
         
