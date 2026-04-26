@@ -21,7 +21,7 @@ class Linear(Module):
 
     def forward(self, in_features: Tensor) -> Tensor:
         return in_features @ torch.transpose(self.weight, -1, -2)
-        # return einsum(x, self.weight, '... in_feature, ... out_feature in_feature -> ... out_feature')
+        # return einsum(in_features, self.weight, '... in_feature, ... out_feature in_feature -> ... out_feature')
 
 class Embedding(Module):
     def __init__(self, num_embd: int, 
@@ -109,3 +109,39 @@ class RoPE(Module):
         sin = torch.sin(pos * freq)
         return torch.stack((cos * h[..., 0] - sin * h[..., 1], 
                           sin * h[..., 0] + cos * h[..., 1]), dim=-1).reshape(shape)
+
+def softmax(h: Tensor, d: int | None = None) -> Tensor:
+    if d:
+        h = h - torch.max(h, dim=d).values.unsqueeze(-1)
+    else:
+        h = h - torch.max(h, dim=-1).values.unsqueeze(-1)
+    exp = torch.exp(h)
+    norm= exp.sum(-1).unsqueeze(-1)
+    return exp/norm
+
+def scaled_dot_product_attention(Q: Tensor, K: Tensor, V: Tensor, mask: Tensor):
+    d = Q.size(-1)
+    att = Q @ K.transpose(-1, -2)/math.sqrt(d)
+    att[~mask] = - torch.inf
+    return softmax(att) @ V
+
+
+class Attention(Module):
+    pass
+
+if __name__ == '__main__':
+    x = torch.tensor([[1.0, 3.0, 1.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
+    from torch.nn.functional import softmax as softmax_g, scaled_dot_product_attention as scaled_dot_product_attention_g
+
+    # print(softmax_g(x) - softmax(x))
+    # print(softmax(x))
+
+    Q = x
+    K = x
+    V = x
+    mask = x > 2.1
+    print(mask)
+    print(scaled_dot_product_attention_g(Q, K, V, mask))
+    print(scaled_dot_product_attention(Q, K, V, mask))
+
+
