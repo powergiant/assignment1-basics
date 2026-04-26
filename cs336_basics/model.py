@@ -231,7 +231,13 @@ class TransformerLM(Module):
         logits = self.lm_head(self.ln_final(h))
         return logits
 
+def cross_entropy(logits: Tensor, targets: Tensor) -> Tensor:
+    logit_target = torch.gather(logits, -1, targets[:, None])
+    logit_max = torch.max(logits, dim=-1).values.detach()
 
+    losses = - (logit_target - logit_max - torch.log(torch.exp(logits - logit_max[:, None]).sum(-1)))
+
+    return losses.mean()
         
 
 if __name__ == '__main__':
