@@ -83,20 +83,25 @@ class RoPE(Module):
         self.d_model = d_model
         assert d_model % 2 == 0
         self.max_seq_len = max_seq_len
-        self.freq: Tensor
+        
+        self.cos: Tensor
+        self.sin: Tensor
         theta = torch.tensor(self.theta, device=device, dtype=dtype)
-        # freq = theta ** torch.tensor([[-k/(d_model//2) for k in range(d_model//2)]], device=device, dtype=dtype)
-        freq = theta ** (- torch.arange(0, d_model//2, device=device, dtype=dtype) / (d_model//2))
-        self.register_buffer('freq', freq, persistent=False)
-    
+        freq = (theta ** (- torch.arange(0, d_model//2, device=device, dtype=dtype) / (d_model//2)))
+        pos = torch.arange(0, max_seq_len)[:, None]
+        cos = torch.cos(pos * freq)
+        sin = torch.sin(pos * freq)
+        
+        self.register_buffer('cos', cos, persistent=False)
+        self.register_buffer('sin', sin, persistent=False)
+
     def forward(self, h: Tensor, pos: Tensor) -> Tensor:
         assert h.size(-1) == self.d_model
         assert h.size(-2) == pos.size(-1)
         shape = h.shape
         h = h.reshape(*shape[:-1], -1, 2)
-        pos = pos.unsqueeze(-1)
-        cos = torch.cos(pos * self.freq)
-        sin = torch.sin(pos * self.freq)
+        cos = self.cos[pos]
+        sin = self.sin[pos]
         return torch.stack((cos * h[..., 0] - sin * h[..., 1], 
                           sin * h[..., 0] + cos * h[..., 1]), dim=-1).reshape(shape)
 
