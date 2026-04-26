@@ -5,7 +5,7 @@
       "name": "Python: run module",
       "type": "debugpy",
       "request": "launch",
-      "module": "cs336_basics.model",
+      "module": "cs336_basics.optimizer",
       "args": [],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
