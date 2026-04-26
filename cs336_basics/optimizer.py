@@ -23,7 +23,7 @@ class SGD(torch.optim.Optimizer):
         
         return loss
     
-class Adam(torch.optim.Optimizer):
+class AdamW(torch.optim.Optimizer):
     def __init__(self, params, lr = 1e-3, weight_decay = 0.01, betas = (0.9, 0.999), eps = 1e-8):
         defaults = {'lr': lr, 'weight_decay': weight_decay, 'betas': betas, 'eps': eps}
         super().__init__(params, defaults)
@@ -36,7 +36,7 @@ class Adam(torch.optim.Optimizer):
             for param_group in self.param_groups:
                 params = param_group['params']
                 lr = param_group['lr']
-                weight_decay = param_group['lr'] 
+                weight_decay = param_group['weight_decay'] 
                 (beta_1, beta_2) = param_group['betas'] 
                 eps =  param_group['eps'] 
 
@@ -51,7 +51,10 @@ class Adam(torch.optim.Optimizer):
                     t = t + 1
 
                     g = param.grad
-                    lr_t = lr * math.sqrt(1 - beta_2 ** t) /(1 - beta_1 ** t)
+                    if g is None:
+                        continue
+
+                    lr_t = lr * math.sqrt(1 - beta_2 ** t) / (1 - beta_1 ** t)
 
                     m = beta_1 * m + (1 - beta_1) * g
                     v = beta_2 * v + (1 - beta_2) * (g ** 2)
@@ -63,6 +66,21 @@ class Adam(torch.optim.Optimizer):
                     state['v'] = v
 
         return loss
+
+def cosine_schedule(
+    it: int,
+    max_learning_rate: float,
+    min_learning_rate: float,
+    warmup_iters: int,
+    cosine_cycle_iters: int,
+):
+    if it < warmup_iters:
+        return it / warmup_iters * max_learning_rate
+    elif warmup_iters <= it <= cosine_cycle_iters:
+        return min_learning_rate + 1 / 2 * (1 + math.cos(math.pi * ((it - warmup_iters) / (cosine_cycle_iters - warmup_iters)))) * (max_learning_rate - min_learning_rate)
+    else:
+        return min_learning_rate
+
 
 if __name__ == '__main__':
     # weights = Parameter(5 * torch.randn((10, 10)))
@@ -76,7 +94,7 @@ if __name__ == '__main__':
     #     opt.step()
 
     weights = Parameter(5 * torch.randn((10, 10)))
-    opt = Adam([weights], lr=1e-1)
+    opt = AdamW([weights], lr=1e-1)
 
     for t in range(10):
         opt.zero_grad()
