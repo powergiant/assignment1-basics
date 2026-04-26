@@ -74,47 +74,37 @@ class FFN(Module):
         return self.l_2(silu(self.l_1(h)) * self.l_3(h))
     
 class RoPE(Module):
-    def __init__(self, theta: float, d_model: int, max_seq_len: int, device: torch.device | None = None):
+    def __init__(self, theta: float, d_model: int, 
+                 max_seq_len: int, 
+                 device: torch.device | None = None,
+                 dtype: torch.dtype | None = None):
         super().__init__()
         self.theta = theta
         self.d_model = d_model
         assert d_model % 2 == 0
         self.max_seq_len = max_seq_len
-        # TODO: self.register_buffer()
-
-    def forward(self, h: Tensor, pos: Tensor) -> Tensor:
-        assert h.size(-1) == self.d_model
-        assert h.size(-2) == pos.size(-1)
-        d_model_half = self.d_model//2 
-        h_1 = h[..., :d_model_half]
-        h_2 = h[..., d_model_half:]
-        pos.unsqueeze_(-1)
-        theta = torch.tensor(self.theta)
-        freq = theta ** torch.tensor([[-k/d_model_half for k in range(d_model_half)]])
-        cos = torch.cos(pos * freq)
-        sin = torch.sin(pos * freq)
-        return torch.cat((cos * h_1 - sin * h_2, sin * h_1 + cos * h_2), dim=-1)
-
+        self.freq: Tensor
+        theta = torch.tensor(self.theta, device=device, dtype=dtype)
+        # freq = theta ** torch.tensor([[-k/(d_model//2) for k in range(d_model//2)]], device=device, dtype=dtype)
+        freq = theta ** (- torch.arange(0, d_model//2, device=device, dtype=dtype) / (d_model//2))
+        self.register_buffer('freq', freq, persistent=False)
     
     def forward(self, h: Tensor, pos: Tensor) -> Tensor:
         assert h.size(-1) == self.d_model
         assert h.size(-2) == pos.size(-1)
-        d_model_half = self.d_model//2 
         shape = h.shape
         h = h.reshape(*shape[:-1], -1, 2)
-        pos.unsqueeze_(-1)
-        theta = torch.tensor(self.theta)
-        freq = theta ** torch.tensor([[-k/d_model_half for k in range(d_model_half)]])
-        cos = torch.cos(pos * freq)
-        sin = torch.sin(pos * freq)
+        pos = pos.unsqueeze(-1)
+        cos = torch.cos(pos * self.freq)
+        sin = torch.sin(pos * self.freq)
         return torch.stack((cos * h[..., 0] - sin * h[..., 1], 
                           sin * h[..., 0] + cos * h[..., 1]), dim=-1).reshape(shape)
 
 def softmax(h: Tensor, d: int | None = None) -> Tensor:
-    if d:
-        h = h - torch.max(h, dim=d).values.unsqueeze(-1)
+    if d is None:
+        h = h - torch.max(h, dim=d).values.unsqueeze(-1).detach()
     else:
-        h = h - torch.max(h, dim=-1).values.unsqueeze(-1)
+        h = h - torch.max(h, dim=-1).values.unsqueeze(-1).detach()
     exp = torch.exp(h)
     norm= exp.sum(-1).unsqueeze(-1)
     return exp/norm
@@ -126,8 +116,19 @@ def scaled_dot_product_attention(Q: Tensor, K: Tensor, V: Tensor, mask: Tensor):
     return softmax(att) @ V
 
 
-class Attention(Module):
-    pass
+class MultiheadSelfAttention(Module):
+    def __init__(self, d_model: int, num_heads: int, 
+                 device: torch.device | None = None,
+                 dtype: torch.dtype | None = None):
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.q_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.k_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.v_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+    
+    def forward():
+        pass
 
 if __name__ == '__main__':
     x = torch.tensor([[1.0, 3.0, 1.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
