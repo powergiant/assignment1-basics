@@ -1,6 +1,6 @@
 import torch
 from torch import Tensor
-from torch.nn import Module, Parameter
+from torch.nn import Module, Parameter, ModuleList
 import math
 from einops import einsum
 
@@ -31,15 +31,15 @@ class Embedding(Module):
         super().__init__()
         self.num_embd = num_embd
         self.d_embd = d_embd
-        self.embd = Parameter(torch.empty(num_embd, d_embd, dtype=dtype, device=device))
+        self.weight = Parameter(torch.empty(num_embd, d_embd, dtype=dtype, device=device))
         self._initial_embd()
         
     def _initial_embd(self):
         sigma = 1.0
-        torch.nn.init.trunc_normal_(self.embd, 0.0, sigma, -3*sigma, 3*sigma)
+        torch.nn.init.trunc_normal_(self.weight, 0.0, sigma, -3*sigma, 3*sigma)
 
     def forward(self, ids: Tensor) -> Tensor:
-        return self.embd[ids]
+        return self.weight[ids]
     
 class RMSNorm(Module):
     def __init__(self, d_model: int, 
@@ -49,11 +49,11 @@ class RMSNorm(Module):
         super().__init__()
         self.d_model = d_model
         self.eps = eps
-        self.gamma = Parameter(torch.tensor([1.0]*d_model, dtype=dtype, device=device))
+        self.weight = Parameter(torch.tensor([1.0]*d_model, dtype=dtype, device=device))
 
     def forward(self, h: Tensor) -> Tensor:
         norm = torch.sqrt((h**2).sum(-1)/self.d_model + self.eps).unsqueeze(-1)
-        return h / norm * self.gamma
+        return h / norm * self.weight
 
 def silu(x: Tensor) -> Tensor:
     return x/(1+torch.exp(-x))
@@ -66,12 +66,12 @@ class FFN(Module):
         super().__init__()
         self.d_model = d_model
         self.d_ff = d_ff
-        self.l_1 = Linear(self.d_model, self.d_ff, device, dtype)
-        self.l_2 = Linear(self.d_ff, self.d_model, device, dtype)
-        self.l_3 = Linear(self.d_model, self.d_ff, device, dtype)
+        self.w1 = Linear(self.d_model, self.d_ff, device, dtype)
+        self.w2 = Linear(self.d_ff, self.d_model, device, dtype)
+        self.w3 = Linear(self.d_model, self.d_ff, device, dtype)
 
     def forward(self, h: Tensor) -> Tensor:
-        return self.l_2(silu(self.l_1(h)) * self.l_3(h))
+        return self.w2(silu(self.w1(h)) * self.w3(h))
     
 class RoPE(Module):
     def __init__(self, theta: float, d_model: int, 
@@ -131,7 +131,7 @@ class MultiheadSelfAttentionWithouRoPE(Module):
         self.q_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.k_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.v_proj = Linear(d_model, d_model, device=device, dtype=dtype)
-        self.o_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.output_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.device = device
     
     def forward(self, h: Tensor) -> Tensor:
@@ -149,7 +149,7 @@ class MultiheadSelfAttentionWithouRoPE(Module):
 
         h = scaled_dot_product_attention(Q, K, V, mask).transpose(-2, -3).contiguous()
 
-        return self.o_proj(h.view(*B, T, D))
+        return self.output_proj(h.view(*B, T, D))
 
 class MultiheadSelfAttention(Module):
     def __init__(self, d_model: int, num_heads: int, theta: float, max_seq_len: int,
@@ -162,7 +162,7 @@ class MultiheadSelfAttention(Module):
         self.q_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.k_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.v_proj = Linear(d_model, d_model, device=device, dtype=dtype)
-        self.o_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.output_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.rope = RoPE(theta, d_model//self.num_heads, max_seq_len, device=device, dtype=dtype)
         self.device = device
     
@@ -186,14 +186,50 @@ class MultiheadSelfAttention(Module):
 
         h = scaled_dot_product_attention(Q_rotate, K_rotate, V, mask).transpose(-2, -3).contiguous()
 
-        return self.o_proj(h.view(*B, T, D))
+        return self.output_proj(h.view(*B, T, D))
 
 
-class TransformerLM(Module):
-    def __init__(self, vocab_size: int, d_model: int, num_heads: int, theta: float, max_seq_len: int,
+class TransformerBlock(Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, theta: float, max_seq_len: int,
                  device: torch.device | None = None,
                  dtype: torch.dtype | None = None):
         super().__init__()
+        self.attn = MultiheadSelfAttention(d_model=d_model, 
+                                           num_heads=num_heads, 
+                                           theta=theta, 
+                                           max_seq_len=max_seq_len, 
+                                           device=device, 
+                                           dtype=dtype)
+        self.ln1 = RMSNorm(d_model=d_model, device=device, dtype=dtype)
+        self.ffn = FFN(d_model=d_model, d_ff=d_ff, device=device, dtype=dtype)
+        self.ln2 = RMSNorm(d_model=d_model, device=device, dtype=dtype)
+
+    def forward(self, h: Tensor) -> Tensor:
+        h = h + self.attn(self.ln1(h))
+        return h + self.ffn(self.ln2(h))
+        
+
+
+class TransformerLM(Module):
+    def __init__(self, vocab_size: int, num_layers: int, d_model: int, 
+                 num_heads: int, d_ff: int, 
+                 theta: float, max_seq_len: int,
+                 device: torch.device | None = None,
+                 dtype: torch.dtype | None = None):
+        super().__init__()
+        self.token_embeddings = Embedding(num_embd=vocab_size, d_embd=d_model, device=device, dtype=dtype)
+        self.layers = ModuleList([TransformerBlock(d_model=d_model, num_heads=num_heads, d_ff=d_ff,
+                                              theta=theta, max_seq_len=max_seq_len, device=device,
+                                              dtype=dtype) for _ in range(num_layers)])
+        self.ln_final = RMSNorm(d_model=d_model)
+        self.lm_head = Linear(d_in=d_model, d_out=vocab_size)
+    
+    def forward(self, tokens: Tensor) -> Tensor:
+        h = self.token_embeddings(tokens)
+        for layer in self.layers:
+            h = layer(h)
+        logits = self.lm_head(self.ln_final(h))
+        return logits
 
 
         
@@ -212,6 +248,7 @@ if __name__ == '__main__':
     print(mask)
     print(scaled_dot_product_attention_g(Q, K, V, mask))
     print(scaled_dot_product_attention(Q, K, V, mask))
+
 
     # print(torch.ones(5, 5, dtype=torch.bool))
     # print(torch.tril(torch.ones(5, 5, dtype=torch.bool), diagonal=0))
