@@ -17,7 +17,7 @@
       "request": "launch",
       "module": "pytest",
       "args": [
-        "tests/test_data.py",
+        "tests/test_serialization.py",
         "-s"
       ],
       "console": "integratedTerminal",
