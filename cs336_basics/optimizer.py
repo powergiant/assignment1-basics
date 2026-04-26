@@ -1,5 +1,6 @@
-from typing import Optional, Callable
+from typing import Optional, Callable, Iterable
 import torch
+from torch import Tensor
 from torch.nn import Parameter
 import math
 
@@ -73,13 +74,25 @@ def cosine_schedule(
     min_learning_rate: float,
     warmup_iters: int,
     cosine_cycle_iters: int,
-):
+) -> float:
     if it < warmup_iters:
         return it / warmup_iters * max_learning_rate
     elif warmup_iters <= it <= cosine_cycle_iters:
         return min_learning_rate + 1 / 2 * (1 + math.cos(math.pi * ((it - warmup_iters) / (cosine_cycle_iters - warmup_iters)))) * (max_learning_rate - min_learning_rate)
     else:
         return min_learning_rate
+
+def gradient_clipping(params: Iterable[torch.nn.Parameter], max_l2_norm: float, eps: float = 1e-6):
+    params = [p for p in params if p.grad is not None]
+
+    total_norm = torch.sqrt(
+        sum(torch.sum(p.grad ** 2) for p in params)
+    )
+
+    if total_norm > max_l2_norm:
+        for param in params:
+            param.grad.mul_(max_l2_norm / (total_norm + eps))
+
 
 
 if __name__ == '__main__':
