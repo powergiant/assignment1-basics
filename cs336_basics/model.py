@@ -101,7 +101,7 @@ class RoPE(Module):
                           sin * h[..., 0] + cos * h[..., 1]), dim=-1).reshape(shape)
 
 def softmax(h: Tensor, d: int | None = None) -> Tensor:
-    if d is None:
+    if d is not None:
         h = h - torch.max(h, dim=d).values.unsqueeze(-1).detach()
     else:
         h = h - torch.max(h, dim=-1).values.unsqueeze(-1).detach()
@@ -109,33 +109,91 @@ def softmax(h: Tensor, d: int | None = None) -> Tensor:
     norm= exp.sum(-1).unsqueeze(-1)
     return exp/norm
 
-def scaled_dot_product_attention(Q: Tensor, K: Tensor, V: Tensor, mask: Tensor):
+def scaled_dot_product_attention(Q: Tensor, K: Tensor, V: Tensor, mask: Tensor) -> Tensor:
     d = Q.size(-1)
-    att = Q @ K.transpose(-1, -2)/math.sqrt(d)
-    att[~mask] = - torch.inf
-    return softmax(att) @ V
+    scores = Q @ K.transpose(-1, -2)/math.sqrt(d)
+    scores = scores.masked_fill(~mask, - torch.inf)
+    return softmax(scores) @ V
 
-
-class MultiheadSelfAttention(Module):
-    def __init__(self, d_model: int, num_heads: int, 
+class MultiheadSelfAttentionWithouRoPE(Module):
+    def __init__(self, d_model: int, num_heads: int,
                  device: torch.device | None = None,
                  dtype: torch.dtype | None = None):
         super().__init__()
         self.d_model = d_model
         self.num_heads = num_heads
+        assert self.d_model % (self.num_heads * 2) == 0
         self.q_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.k_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.v_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.o_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.device = device
     
-    def forward():
-        pass
+    def forward(self, h: Tensor) -> Tensor:
+        assert h.shape[-1] == self.d_model
+        B, T, D, H = (h.shape[:-2], h.shape[-2], self.d_model, self.num_heads)
+        Q = self.q_proj.forward(h)
+        K = self.k_proj.forward(h)
+        V = self.v_proj.forward(h)
+        
+        Q = Q.view(*B, T, H, D//H).transpose(-2, -3)
+        K = K.view(*B, T, H, D//H).transpose(-2, -3)
+        V = V.view(*B, T, H, D//H).transpose(-2, -3)
+
+        mask = torch.tril(torch.ones(T, T, dtype=torch.bool), diagonal=0)
+
+        h = scaled_dot_product_attention(Q, K, V, mask).transpose(-2, -3).contiguous()
+
+        return self.o_proj(h.view(*B, T, D))
+
+class MultiheadSelfAttention(Module):
+    def __init__(self, d_model: int, num_heads: int, theta: float, max_seq_len: int,
+                 device: torch.device | None = None,
+                 dtype: torch.dtype | None = None):
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        assert self.d_model % (self.num_heads * 2) == 0
+        self.q_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.k_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.v_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.o_proj = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.rope = RoPE(theta, d_model//self.num_heads, max_seq_len, device=device, dtype=dtype)
+        self.device = device
+    
+    def forward(self, h: Tensor) -> Tensor:
+        assert h.shape[-1] == self.d_model
+        B, T, D, H = (h.shape[:-2], h.shape[-2], self.d_model, self.num_heads)
+        Q = self.q_proj.forward(h)
+        K = self.k_proj.forward(h)
+        V = self.v_proj.forward(h)
+        
+        Q = Q.view(*B, T, H, D//H).transpose(-2, -3)
+        K = K.view(*B, T, H, D//H).transpose(-2, -3)
+        V = V.view(*B, T, H, D//H).transpose(-2, -3)
+
+        pos = torch.arange(0, T, device=self.device)
+
+        Q_rotate = self.rope.forward(Q, pos)
+        K_rotate = self.rope.forward(K, pos)
+
+        mask = torch.tril(torch.ones(T, T, dtype=torch.bool), diagonal=0)
+
+        h = scaled_dot_product_attention(Q_rotate, K_rotate, V, mask).transpose(-2, -3).contiguous()
+
+        return self.o_proj(h.view(*B, T, D))
+
+
+
+
+        
 
 if __name__ == '__main__':
     x = torch.tensor([[1.0, 3.0, 1.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
     from torch.nn.functional import softmax as softmax_g, scaled_dot_product_attention as scaled_dot_product_attention_g
 
-    # print(softmax_g(x) - softmax(x))
-    # print(softmax(x))
+    print(softmax_g(x) - softmax(x))
+    print(softmax(x))
 
     Q = x
     K = x
@@ -144,5 +202,8 @@ if __name__ == '__main__':
     print(mask)
     print(scaled_dot_product_attention_g(Q, K, V, mask))
     print(scaled_dot_product_attention(Q, K, V, mask))
+
+    # print(torch.ones(5, 5, dtype=torch.bool))
+    # print(torch.tril(torch.ones(5, 5, dtype=torch.bool), diagonal=0))
 
 
