@@ -147,7 +147,6 @@ class Dataset(IterableDataset):
         self.block_size = block_size
         self.buffer_size = buffer_size
         assert self.buffer_size > self.block_size
-        self.device = device if device is not None else torch.device('cpu')
 
     def __iter__(self):
         buffer = []
@@ -164,7 +163,7 @@ class Dataset(IterableDataset):
                 sample = buffer[:self.block_size+1]
                 buffer = buffer[self.block_size:]
 
-                yield torch.tensor(sample, device=self.device)
+                yield torch.tensor(sample)
 
 
 if __name__ == '__main__':
@@ -191,9 +190,9 @@ if __name__ == '__main__':
 
     tokenizer = tiktoken.get_encoding('gpt2')
 
-    data_conf = {"context_length": 1024, "batch_size": 6, "device": device} # 32
+    data_conf = {"context_length": 1024, "batch_size": 6} # 32
 
-    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=data_conf['context_length'], device=data_conf['device'])
+    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=data_conf['context_length'])
 
     dataloader_train = DataLoader(dataset_train, batch_size = data_conf['batch_size'], num_workers=1)
 
@@ -227,6 +226,7 @@ if __name__ == '__main__':
     if not os.path.exists(CHECKPOINT_PATH.parent):
         os.mkdir(CHECKPOINT_PATH.parent)
 
+    # TODO: bug, if previously save in another device, there will be device mismatch
     if os.path.exists(CHECKPOINT_PATH):
         load_checkpoint(CHECKPOINT_PATH, model, optimizer)
     else:
@@ -236,6 +236,7 @@ if __name__ == '__main__':
 
     for it, data in enumerate(dataloader_train):
         data: Tensor
+        data.to(device)
         model.zero_grad()
 
         input = data[:, :-1]
