@@ -169,10 +169,16 @@ class Dataset(IterableDataset):
 
 if __name__ == '__main__':
     import pathlib, os
+    import argparse
 
-    DATA_TRAIN_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-train.txt"
-    DATA_VAL_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-valid.txt"
-    CHECKPOINT_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "checkpoint" / 'checkpoint.pt'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data', default=None)
+    parser.add_argument('--ckpt', default=None)
+    args = parser.parse_args()
+
+    DATA_TRAIN_PATH = pathlib.Path(args.data).resolve() / "TinyStoriesV2-GPT4-train.txt" if args.data else (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-train.txt"
+    DATA_VAL_PATH = pathlib.Path(args.data).resolve() / "TinyStoriesV2-GPT4-valid.txt" if args.data else (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-valid.txt"
+    CHECKPOINT_PATH = pathlib.Path(args.ckpt).resolve() / "checkpoint.pt" if args.ckpt else (pathlib.Path(__file__).resolve().parent.parent) / "checkpoint" / 'checkpoint.pt'
 
     if torch.cuda.is_available():
         device = torch.device('cuda')
