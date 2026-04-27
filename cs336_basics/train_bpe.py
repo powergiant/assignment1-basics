@@ -99,7 +99,6 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
                         if id < len(tokens) - 2:
                             dict_update(pair_counts, (tokens[id+1], tokens[id+2]), -count)
                             dict_update(pair_counts, (p_merged, tokens[id+2]), count)
-                            pair_counts[(tokens[id+1], tokens[id+2])] -= count
                         id += 2
                     else:
                         tokens_new.append(tokens[id])
