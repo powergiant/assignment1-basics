@@ -251,10 +251,10 @@ if __name__ == '__main__':
         optimizer.step()
         scheduler.step()
         
-        if it % checkpoint_conf['logging']:
+        if it % checkpoint_conf['logging'] == 0:
             print(f"loss: {loss.item():.4f}")
         
-        if it != 0 and it % checkpoint_conf['checkpoint']:
+        if it != 0 and it % checkpoint_conf['checkpoint'] == 0:
             save_checkpoint(model, optimizer, it, CHECKPOINT_PATH) 
         
 
