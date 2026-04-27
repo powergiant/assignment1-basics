@@ -196,8 +196,8 @@ if __name__ == '__main__':
 
     dataloader_train = DataLoader(dataset_train, batch_size = data_conf['batch_size'], num_workers=1)
 
-    model_conf = {"vocab_size": tokenizer.n_vocab, "num_layers": 4, 
-              "d_model": 512, "num_heads": 4, "d_ff": 1344, 
+    model_conf = {"vocab_size": tokenizer.n_vocab, "num_layers": 48, 
+              "d_model": 1600, "num_heads": 25, "d_ff": 4288, 
               "theta": 10000., "max_seq_len": 2048,
               "device": device, 'dtype': torch.float32}
 
