@@ -209,6 +209,9 @@ if __name__ == '__main__':
 
     checkpoint_conf = {'checkpoint': 100, 'logging': 10, 'val': 10}
 
+    if not os.path.exists(CHECKPOINT_PATH.parent):
+        os.mkdir(CHECKPOINT_PATH.parent)
+
     if os.path.exists(CHECKPOINT_PATH):
         load_checkpoint(CHECKPOINT_PATH, model, optimizer)
     else:
