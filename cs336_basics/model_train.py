@@ -178,25 +178,25 @@ if __name__ == '__main__':
         device = torch.device('cuda')
     else:
         try:
-            import torch_xla.core.xla_model as xm
-            device = xm.xla_device()
+            import torch_xla
+            device = torch_xla.device()
         except:
             device = torch.device('cpu')
 
     tokenizer = tiktoken.get_encoding('gpt2')
 
-    data_conf = {"context_length": 1024, "batch_size": 6} # 32
+    data_conf = {"context_length": 1024, "batch_size": 6, "device": device} # 32
 
-    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=data_conf['context_length'], device=device)
+    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=data_conf['context_length'], device=data_conf['device'])
 
     dataloader_train = DataLoader(dataset_train, batch_size = data_conf['batch_size'], num_workers=1)
 
     model_conf = {"vocab_size": tokenizer.n_vocab, "num_layers": 4, 
               "d_model": 512, "num_heads": 4, "d_ff": 1344, 
               "theta": 10000., "max_seq_len": 2048,
-              "device": torch.device('cpu'), 'dtype': torch.float32}
+              "device": device, 'dtype': torch.float32}
 
-    model = TransformerLM(**model_conf, device=device)
+    model = TransformerLM(**model_conf)
 
     from torch.optim import AdamW
     from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR, ConstantLR
