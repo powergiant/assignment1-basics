@@ -58,14 +58,14 @@ class Tokenizer:
         pass
 
     def encode(self, text: str) -> list[int]:
-        l_enc = []
+        ids = []
         words = chunk_pretokenization_list(text, self.special_tokens)
         for word in words:
             if self.special_tokens and word in self.special_tokens:
-                l_enc.append(self.vocab_inv[word.encode('utf-8')])
+                ids.append(self.vocab_inv[word.encode('utf-8')])
             else:
-                l_enc += word_tokenization_list(word, self.vocab_inv, self.merges)
-        return l_enc
+                ids += word_tokenization_list(word, self.vocab_inv, self.merges)
+        return ids
     
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:

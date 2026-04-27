@@ -224,8 +224,8 @@ class TransformerLM(Module):
         self.ln_final = RMSNorm(d_model=d_model)
         self.lm_head = Linear(d_in=d_model, d_out=vocab_size)
     
-    def forward(self, tokens: Tensor) -> Tensor:
-        h = self.token_embeddings(tokens)
+    def forward(self, token_ids: Tensor) -> Tensor:
+        h = self.token_embeddings(token_ids)
         for layer in self.layers:
             h = layer(h)
         logits = self.lm_head(self.ln_final(h))
