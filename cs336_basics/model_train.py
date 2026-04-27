@@ -34,7 +34,7 @@ class RoPE(Module):
         self.sin: Tensor
         theta = torch.tensor(self.theta, device=device, dtype=dtype)
         freq = (theta ** (- torch.arange(0, d_model//2, device=device, dtype=dtype) / (d_model//2)))
-        pos = torch.arange(0, max_seq_len)[:, None]
+        pos = torch.arange(0, max_seq_len, device=device)[:, None]
         cos = torch.cos(pos * freq)
         sin = torch.sin(pos * freq)
         
