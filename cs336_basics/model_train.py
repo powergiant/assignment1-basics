@@ -226,12 +226,8 @@ if __name__ == '__main__':
     if not os.path.exists(CHECKPOINT_PATH.parent):
         os.mkdir(CHECKPOINT_PATH.parent)
 
-    # TODO: bug, if previously save in another device, there will be device mismatch
-    # TODO: bug, if load previous checkpoint, since adam, the state do not match. if loading for many times. the loss will explode.
-    if os.path.exists(CHECKPOINT_PATH):
-        load_checkpoint(CHECKPOINT_PATH, model, optimizer)
-    else:
-        save_checkpoint(model, optimizer, 0, CHECKPOINT_PATH)
+
+    save_checkpoint(model, optimizer, 0, CHECKPOINT_PATH)
 
     from torch.nn.functional import cross_entropy
 
