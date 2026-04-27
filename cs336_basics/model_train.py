@@ -146,6 +146,7 @@ class Dataset(IterableDataset):
         self.tokenizer = tokenizer
         self.block_size = block_size
         self.buffer_size = buffer_size
+        assert self.buffer_size > self.block_size
         self.device = device if device is not None else torch.device('cpu')
 
     def __iter__(self):
@@ -160,41 +161,82 @@ class Dataset(IterableDataset):
                     token_ids = self.tokenizer.encode(chunk, allowed_special='all')
                     buffer.extend(token_ids)
                 
-                sample = buffer[:self.block_size]
+                sample = buffer[:self.block_size+1]
                 buffer = buffer[self.block_size:]
 
                 yield torch.tensor(sample, device=self.device)
 
 
 if __name__ == '__main__':
-    import pathlib
+    import pathlib, os
 
     DATA_TRAIN_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-train.txt"
     DATA_VAL_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-valid.txt"
-
-    # FIXTURES_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "tests" / "fixtures"
-    # VOCAB_PATH = FIXTURES_PATH / "gpt2_vocab.json"
-    # MERGES_PATH = FIXTURES_PATH / "gpt2_merges.txt"
+    CHECKPOINT_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "checkpoint" / 'checkpoint.pt'
 
     tokenizer = tiktoken.get_encoding('gpt2')
 
-    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=1024)
+    data_conf = {"context_length": 1024, "batch_size": 6} # 32
 
-    dataloader_train = DataLoader(dataset_train, batch_size = 32, num_workers=1)
+    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=data_conf['context_length'])
 
-    config = {"vocab_size": tokenizer.n_vocab, "num_layer": 4, 
+    dataloader_train = DataLoader(dataset_train, batch_size = data_conf['batch_size'], num_workers=1)
+
+    model_conf = {"vocab_size": tokenizer.n_vocab, "num_layers": 4, 
               "d_model": 512, "num_heads": 4, "d_ff": 1344, 
               "theta": 10000., "max_seq_len": 2048,
               "device": torch.device('cpu'), 'dtype': torch.float32}
+
+    model = TransformerLM(**model_conf)
+
+    from torch.optim import AdamW
+    from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR, ConstantLR
     
-    
 
-    model = TransformerLM(**config)
+    opt_conf = {'lr_max': 1e-3, 'lr_min': 1e-4, 'T_w': 100, 'T_c': 1000, 'T': 1500}
+
+    optimizer = AdamW(model.parameters(), opt_conf['lr_max'])
+
+    scheduler_warm_up = LinearLR(optimizer, start_factor=1e-3, end_factor=1.0, total_iters=opt_conf['T_w'])
+    scheduler_cos_ann = CosineAnnealingLR(optimizer, T_max=opt_conf['T_c'] - opt_conf['T_w'], eta_min=opt_conf['lr_min'])
+    scheduler_post_ann = ConstantLR(optimizer, factor=1.0, total_iters=opt_conf['T'] - opt_conf['T_c'])
+
+    scheduler = SequentialLR(optimizer=optimizer, 
+                             schedulers=[scheduler_warm_up, scheduler_cos_ann, scheduler_post_ann],
+                             milestones=[opt_conf['T_w'], opt_conf['T_c']])
+
+    from .checkpointing import save_checkpoint, load_checkpoint
+
+    checkpoint_conf = {'checkpoint': 100, 'logging': 10, 'val': 10}
+
+    if os.path.exists(CHECKPOINT_PATH):
+        load_checkpoint(CHECKPOINT_PATH, model, optimizer)
+    else:
+        save_checkpoint(model, optimizer, 0, CHECKPOINT_PATH)
+
+    from torch.nn.functional import cross_entropy
+
+    for it, data in enumerate(dataloader_train):
+        data: Tensor
+        model.zero_grad()
+
+        input = data[:, :-1]
+        target = data[:, 1:]
+        logits: Tensor = model(input)
 
 
-    # from torch.optim import AdamW
+        loss = cross_entropy(logits.view(-1, logits.size(-1)), target.contiguous().view(-1))
 
-    # optimizer = AdamW()
+        loss.backward()
 
-    for data in dataloader_train:
-        data
+        optimizer.step()
+        scheduler.step()
+        
+        if it % checkpoint_conf['logging']:
+            print(f"loss: {loss.item():.4f}")
+        
+        if it != 0 and it % checkpoint_conf['checkpoint']:
+            save_checkpoint(model, optimizer, it, CHECKPOINT_PATH) 
+        
+
+        
