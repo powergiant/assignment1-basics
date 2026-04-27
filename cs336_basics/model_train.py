@@ -3,7 +3,6 @@ from torch import Tensor
 from torch.nn import Module, ModuleList
 from torch.nn import Linear, Embedding, RMSNorm
 from torch.nn.functional import silu, scaled_dot_product_attention
-from torch.nn.attention import sdpa_kernel, SDPBackend
 
 class FFN(Module):
     def __init__(self, d_model: int, 
@@ -132,5 +131,70 @@ class TransformerLM(Module):
             h = layer(h)
         logits = self.lm_head(self.ln_final(h))
         return logits
+    
+
+from torch.utils.data import IterableDataset, DataLoader
+import tiktoken
+from os import PathLike
+
+class Dataset(IterableDataset):
+    def __init__(self, path: str | PathLike, tokenizer: tiktoken.Encoding, 
+                 block_size: int, buffer_size: int = 10000, 
+                 device: torch.device | None = None):
+        super().__init__()
+        self.path = path
+        self.tokenizer = tokenizer
+        self.block_size = block_size
+        self.buffer_size = buffer_size
+        self.device = device if device is not None else torch.device('cpu')
+
+    def __iter__(self):
+        buffer = []
+
+        with open(self.path, 'r', encoding='utf-8') as f:
+            while True:
+                if len(buffer) < self.buffer_size:
+                    chunk = f.read(self.buffer_size)
+                    if not chunk:
+                        break
+                    token_ids = self.tokenizer.encode(chunk, allowed_special='all')
+                    buffer.extend(token_ids)
+                
+                sample = buffer[:self.block_size]
+                buffer = buffer[self.block_size:]
+
+                yield torch.tensor(sample, device=self.device)
 
 
+if __name__ == '__main__':
+    import pathlib
+
+    DATA_TRAIN_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-train.txt"
+    DATA_VAL_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-valid.txt"
+
+    # FIXTURES_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "tests" / "fixtures"
+    # VOCAB_PATH = FIXTURES_PATH / "gpt2_vocab.json"
+    # MERGES_PATH = FIXTURES_PATH / "gpt2_merges.txt"
+
+    tokenizer = tiktoken.get_encoding('gpt2')
+
+    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=1024)
+
+    dataloader_train = DataLoader(dataset_train, batch_size = 32, num_workers=1)
+
+    config = {"vocab_size": tokenizer.n_vocab, "num_layer": 4, 
+              "d_model": 512, "num_heads": 4, "d_ff": 1344, 
+              "theta": 10000., "max_seq_len": 2048,
+              "device": torch.device('cpu'), 'dtype': torch.float32}
+    
+    
+
+    model = TransformerLM(**config)
+
+
+    # from torch.optim import AdamW
+
+    # optimizer = AdamW()
+
+    for data in dataloader_train:
+        data
