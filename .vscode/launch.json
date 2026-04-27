@@ -5,7 +5,7 @@
       "name": "Python: run module",
       "type": "debugpy",
       "request": "launch",
-      "module": "cs336_basics.optimizer",
+      "module": "cs336_basics.train_bpe",
       "args": [],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
@@ -17,7 +17,7 @@
       "request": "launch",
       "module": "pytest",
       "args": [
-        "tests/test_serialization.py",
+        "tests/test_train_bpe.py",
         "-s"
       ],
       "console": "integratedTerminal",
