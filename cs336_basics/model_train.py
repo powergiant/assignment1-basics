@@ -174,11 +174,20 @@ if __name__ == '__main__':
     DATA_VAL_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "data" / "TinyStoriesV2-GPT4-valid.txt"
     CHECKPOINT_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "checkpoint" / 'checkpoint.pt'
 
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        try:
+            import torch_xla.core.xla_model as xm
+            device = xm.xla_device()
+        except:
+            device = torch.device('cpu')
+
     tokenizer = tiktoken.get_encoding('gpt2')
 
     data_conf = {"context_length": 1024, "batch_size": 6} # 32
 
-    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=data_conf['context_length'])
+    dataset_train = Dataset(DATA_TRAIN_PATH, tokenizer, block_size=data_conf['context_length'], device=device)
 
     dataloader_train = DataLoader(dataset_train, batch_size = data_conf['batch_size'], num_workers=1)
 
@@ -187,7 +196,7 @@ if __name__ == '__main__':
               "theta": 10000., "max_seq_len": 2048,
               "device": torch.device('cpu'), 'dtype': torch.float32}
 
-    model = TransformerLM(**model_conf)
+    model = TransformerLM(**model_conf, device=device)
 
     from torch.optim import AdamW
     from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR, ConstantLR
