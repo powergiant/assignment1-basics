@@ -5,7 +5,7 @@
       "name": "Python: run module",
       "type": "debugpy",
       "request": "launch",
-      "module": "cs336_basics.train_bpe",
+      "module": "cs336_basics.model_train",
       "args": [],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",

@@ -221,8 +221,8 @@ class TransformerLM(Module):
         self.layers = ModuleList([TransformerBlock(d_model=d_model, num_heads=num_heads, d_ff=d_ff,
                                               theta=theta, max_seq_len=max_seq_len, device=device,
                                               dtype=dtype) for _ in range(num_layers)])
-        self.ln_final = RMSNorm(d_model=d_model)
-        self.lm_head = Linear(d_in=d_model, d_out=vocab_size)
+        self.ln_final = RMSNorm(d_model=d_model, device=device, dtype=dtype)
+        self.lm_head = Linear(d_in=d_model, d_out=vocab_size, device=device, dtype=dtype)
     
     def forward(self, token_ids: Tensor) -> Tensor:
         h = self.token_embeddings(token_ids)
