@@ -236,7 +236,7 @@ if __name__ == '__main__':
 
     for it, data in enumerate(dataloader_train):
         data: Tensor
-        data.to(device)
+        data = data.to(device)
         model.zero_grad()
 
         input = data[:, :-1]
