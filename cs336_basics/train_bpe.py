@@ -1,7 +1,7 @@
 import regex as re
 
 def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
-    if p_m[0] not in l:
+    if p_m[0] not in l or p_m[1] not in l:
         return l
     id = 0
     n = len(l)
@@ -14,6 +14,12 @@ def replace_pair(l: list[bytes], p_m: tuple[bytes, bytes]):
             l_new.append(l[id])
             id += 1
     return l_new
+
+def dict_update(d: dict, key, val: int):
+    try:
+        d[key] += val
+    except:
+        d[key] = val
 
 def pretokenization(content: str, special_tokens: list[str] | None, pattern: str) -> list[str]:
 
@@ -45,8 +51,6 @@ def pretokenization(content: str, special_tokens: list[str] | None, pattern: str
 
     return words
 
-
-
 def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
     TODO:
@@ -56,33 +60,50 @@ def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]) -> tu
     pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     words = pretokenization(content, special_tokens, pattern)
     words = list(filter(lambda x : x not in special_tokens, words))
-    counts = {}
+    word_counts = {}
     for word in words:
-        try:
-            counts[word] += 1
-        except:
-            counts[word] = 1
+        dict_update(word_counts, word, 1)
 
     vocab = {i: bytes([i]) for i in range(256)}
 
     merges = []
     vocab_len = len(vocab)
-    counts: dict[str, int]
-    words_tokens = {word: [bytes([c]) for c in word.encode("utf-8")] for word in counts.keys()}
-    while vocab_len < vocab_size - len(special_tokens):
-        merge_counts = {}
-        for word in counts.keys():
-            count = counts[word]
-            tokens = words_tokens[word]
-            for i in range(len(tokens)-1):
-                try:
-                    merge_counts[(tokens[i], tokens[i+1])] += count
-                except:
-                    merge_counts[(tokens[i], tokens[i+1])] = count
-        (p_m, count) = max(list(merge_counts.items()), key=lambda x: (x[1], x[0]))
+    word_counts: dict[str, int]
+    word_tokens = {word: [bytes([c]) for c in word.encode("utf-8")] for word in word_counts.keys()}
+    
+    pair_counts = {}
+    for word in word_counts.keys():
+        count = word_counts[word]
+        tokens = word_tokens[word]
+        for i in range(len(tokens)-1):
+            dict_update(pair_counts, (tokens[i], tokens[i+1]), count)
 
-        for word in words_tokens.keys():
-            words_tokens[word] = replace_pair(words_tokens[word], p_m)
+    while vocab_len < vocab_size - len(special_tokens):
+        p_m, _ = max(pair_counts.items(), key=lambda x: (x[1], x[0]))
+        p_merged = p_m[0] + p_m[1]
+        pair_counts.pop(p_m)
+        for word, count in word_counts.items():
+            tokens = word_tokens[word]
+            if p_m[0] not in tokens or p_m[1] not in tokens:
+                continue
+            else:
+                id = 0
+                n = len(tokens)
+                tokens_new = []
+                while id < n:
+                    if id < n - 1 and tokens[id] == p_m[0] and tokens[id+1] == p_m[1]:
+                        tokens_new.append(p_merged)
+                        if id >= 1:
+                            dict_update(pair_counts, (tokens[id-1], tokens[id]), -count)
+                            dict_update(pair_counts, (tokens[id-1], p_merged), count)
+                        if id < len(tokens) - 2:
+                            dict_update(pair_counts, (tokens[id+1], tokens[id+2]), -count)
+                            dict_update(pair_counts, (p_merged, tokens[id+2]), count)
+                        id += 2
+                    else:
+                        tokens_new.append(tokens[id])
+                        id += 1
+                word_tokens[word] = tokens_new
 
         merges.append(p_m)
 
